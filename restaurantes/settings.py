@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
+    'rest_framework_simplejwt',
     'coreapi',
     'api',
 ]
@@ -146,3 +147,18 @@ CORS_ALLOWED_ORIGINS = [
     # Agrega aquí los dominios de tu frontend cuando esté desplegado
     # "https://tu-dominio-frontend.com",
 ]
+
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication', # Usar autenticación JWT
+        # Opcional: Mantener la autenticación por sesión para la vista navegable de la API en el navegador
+        # 'rest_framework.authentication.SessionAuthentication',
+    ],
+    # Puedes añadir una clase de permiso por defecto si la mayoría de tus vistas requieren autenticación
+    # 'DEFAULT_PERMISSION_CLASSES': [
+    #     'rest_framework.permissions.IsAuthenticated',
+    # ]
+    # O seguir aplicando @permission_classes([IsAuthenticated]) a cada vista individualmente.
+}

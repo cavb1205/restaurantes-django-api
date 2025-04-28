@@ -1,11 +1,12 @@
 from django.shortcuts import render, get_object_or_404
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Restaurante, Envio, RedSocial, MetodoPago, Producto, Orden
 from .serializers import (
     RestauranteSerializer, EnvioSerializer, RedSocialSerializer,
-    MetodoPagoSerializer, ProductoSerializer, OrdenSerializer
+    MetodoPagoSerializer, ProductoSerializer, OrdenSerializer,OrdenEstadoUpdateSerializer
 )
 
 # Create your views here.
@@ -226,4 +227,82 @@ def orden_detail(request, pk):
         serializer = OrdenSerializer(orden)
         return Response(serializer.data)
     return Response(status=status.HTTP_400_BAD_REQUEST)
-    
+
+
+
+
+@api_view(['GET']) # Solo permitirá peticiones GET
+@permission_classes([IsAuthenticated]) # Requiere que el usuario esté autenticado
+def listar_ordenes_restaurante(request, restaurante_slug):
+    """
+    Lista las órdenes para un restaurante específico por slug,
+    verificando que el usuario autenticado sea el propietario.
+    """
+    user = request.user # Obtener el usuario autenticado
+
+    restaurante = get_object_or_404(Restaurante, slug=restaurante_slug)
+
+    if restaurante.propietario != user:
+        return Response({"error": "No tienes permiso para ver las órdenes de este restaurante."}, status=status.HTTP_403_FORBIDDEN)
+
+    # 3. Si la verificación de permiso pasa, filtrar las órdenes para este restaurante.
+    ordenes = Orden.objects.filter(restaurante=restaurante).order_by('-created_at')
+
+    # 4. Serializar las órdenes
+    serializer = OrdenSerializer(ordenes, many=True, context={'request': request})
+
+    # 5. Devolver la respuesta
+    return Response(serializer.data)   
+
+
+@api_view(['PATCH']) # Usamos PATCH para actualizaciones parciales (solo un campo)
+@permission_classes([IsAuthenticated]) # Requiere que el usuario esté autenticado
+# La función acepta el ID de la orden como parámetro
+def actualizar_estado_orden(request, restaurante_slug, orden_id):
+    """
+    Actualiza el estado de una orden específica por ID,
+    verificando que el usuario autenticado sea el propietario del restaurante asociado.
+    """
+    user = request.user # Obtener el usuario autenticado
+
+    # 1. Intentar encontrar la orden por el ID
+    # get_object_or_404 devolverá 404 si la orden no existe.
+    orden = get_object_or_404(Orden, id=orden_id)
+
+    # 2. **Verificación de Permiso Crucial:** Asegurarse de que el usuario autenticado
+    # es el propietario del restaurante asociado a esta orden.
+    # Accedemos a la instancia del restaurante a través de la orden
+    restaurante_orden = orden.restaurante
+
+    # Comparamos el propietario del restaurante con el usuario autenticado
+    if restaurante_orden.propietario != user:
+        # Si el usuario NO es el propietario del restaurante de esta orden, denegar el acceso.
+        return Response(
+            {"detail": "No tienes permiso para actualizar el estado de esta orden."},
+            status=status.HTTP_403_FORBIDDEN # 403 Forbidden
+        )
+
+    # 3. Si la verificación de permiso pasa, proceder a actualizar el estado.
+    # Usamos el OrdenEstadoUpdateSerializer.
+    # partial=True permite enviar solo el campo 'estado' en el cuerpo de la petición.
+    serializer = OrdenEstadoUpdateSerializer(orden, data=request.data, partial=True)
+
+    # 4. Validar los datos (solo el estado)
+    if serializer.is_valid():
+        # Guardar la instancia con el estado actualizado
+        serializer.save()
+
+        # 5. Opcional: Serializar la orden COMPLETA para devolver la respuesta
+        # Usamos el OrdenSerializer completo para incluir todos los detalles anidados
+        # en la respuesta, como en la vista de detalle GET.
+        full_serializer = OrdenSerializer(orden, context={'request': request}) # Pasa el contexto si es necesario en el serializador
+        return Response(full_serializer.data)
+
+        # Si solo quisieras confirmar el estado actualizado:
+        # return Response({'status': 'success', 'orden_id': orden.id, 'new_estado': orden.estado})
+
+
+    # 6. Si los datos no son válidos (ej: el valor de estado no es una opción válida en el modelo)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+

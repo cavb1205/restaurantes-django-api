@@ -208,15 +208,12 @@ class OrdenSerializer(serializers.ModelSerializer):
         # Devolver la instancia de la Orden creada y completa
         return orden
 
-    # Opcional: to_representation para controlar cómo se muestra la orden en la respuesta GET/POST
-    # Por defecto, si 'items' no es read_only en Meta, DRF intentará serializar los ítems con DetalleOrdenSerializer
-    # Si en la salida quieres ver los detalles completos del Producto y Restaurante,
-    # puedes añadir campos adicionales read_only que usen los serializadores completos:
-    # restaurante_details = RestauranteSerializer(source='restaurante', read_only=True)
-    # items_details = DetalleOrdenSerializer(many=True, source='items', read_only=True)
-    # Y ajustar los 'fields' en Meta.
-    # Sin embargo, la configuración actual (PrimaryKeyRelatedField y items sin read_only)
-    # funciona para entrada (IDs, lista de ítems anidados) y salida (IDs para FKs, representación por defecto de items).
+ 
 
-
-        
+class OrdenEstadoUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializador para permitir solo la actualización del campo 'estado' de una orden.
+    """
+    class Meta:
+        model = Orden
+        fields = ['estado'] 

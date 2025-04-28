@@ -12,6 +12,8 @@ urlpatterns = [
     path('restaurantes/<slug:slug>/', views.restaurante_detail, name='restaurante_detail'),
     path('restaurantes/<int:pk>', views.restaurante_detail_id , name='restaurante_detail_by_pk'),
     path('restaurantes/<slug:restaurante_slug>/productos/', views.producto_list_by_restaurante_slug, name='productos_por_restaurante'),
+    path('restaurantes/<slug:restaurante_slug>/ordenes/', views.listar_ordenes_restaurante, name='listar_ordenes_restaurante'),
+    path('restaurantes/<slug:restaurante_slug>/ordenes/<int:orden_id>/estado/', views.actualizar_estado_orden, name='actualizar_estado_orden'),
 
     path('envios/', views.envio_list_create, name='envio_list_create'),
     path('envios/<int:pk>/', views.envio_detail, name='envio_detail'),
@@ -19,6 +21,7 @@ urlpatterns = [
     #ordenes
     path('ordenes/', views.crear_orden, name='crear_orden'),
     path('ordenes/<int:pk>/', views.orden_detail, name='orden_detail'),
+
     
 ]
 
