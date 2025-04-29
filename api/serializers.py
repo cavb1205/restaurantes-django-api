@@ -4,23 +4,85 @@ from django.utils import timezone
 from .models import Restaurante, Envio, RedSocial, MetodoPago, TipoCocina, Categoria, Producto, Orden, DetalleOrden
 
 class RedSocialSerializer(serializers.ModelSerializer):
+    # Para la entrada (creación/actualización): Este campo NO se espera del frontend.
+    # Se asignará en la vista basándose en el restaurante de la URL y la propiedad.
+    # Para la salida (lectura): Por defecto, serializará al ID del Restaurante.
+    # Si quieres los detalles completos de Restaurante en la salida, añade:
+    # restaurante_details = RestauranteSerializer(source='restaurante', read_only=True)
+    # Eliminamos el queryset ya que es read_only=True
+    restaurante = serializers.PrimaryKeyRelatedField(read_only=True) # <-- Read-only: Se asigna en la vista
+
+
     class Meta:
         model = RedSocial
-        fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        fields = [
+            'id',
+            'restaurante', # Campo para entrada (read-only) y salida (ID por defecto)
+            'tipo', # Asumiendo que tienes un campo 'tipo' en tu modelo RedSocial
+            'url',  # Asumiendo que tienes un campo 'url'
+            'orden',# Asumiendo que tienes un campo 'orden'
+            'activo',# Asumiendo que tienes un campo 'activo'
+            'created_at', # Asumiendo campos de tiempo
+            'updated_at'
+        ]
+        # read_only_fields: Campos que NUNCA se aceptan en la entrada.
+        # 'id', 'created_at', 'updated_at' son automáticos.
+        # 'restaurante' se asigna en la vista.
+        read_only_fields = ('id', 'restaurante', 'created_at', 'updated_at')
 
 class MetodoPagoSerializer(serializers.ModelSerializer):
+    # Para la entrada (creación/actualización): Este campo NO se espera del frontend.
+    # Se asignará en la vista basándose en el restaurante de la URL y la propiedad.
+    # Para la salida (lectura): Por defecto, serializará al ID del Restaurante.
+    # Si quieres los detalles completos de Restaurante en la salida, añade:
+    # restaurante_details = RestauranteSerializer(source='restaurante', read_only=True)
+    restaurante = serializers.PrimaryKeyRelatedField(read_only=True) # <-- Read-only: Se asigna en la vista
+
+
     class Meta:
         model = MetodoPago
-        fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        fields = [
+            'id',
+            'restaurante', # Campo para entrada (read-only) y salida (ID por defecto)
+            'tipo',
+            'descripcion',
+            'orden',
+            'activo',
+            'configuracion', # Puedes necesitar validación específica para este JSONField
+            'created_at',
+            'updated_at'
+        ]
+        # read_only_fields: Campos que NUNCA se aceptan en la entrada.
+        # 'id', 'created_at', 'updated_at' son automáticos.
+        # 'restaurante' se asigna en la vista.
+        read_only_fields = ('id', 'restaurante', 'created_at', 'updated_at')
 
 
 class EnvioSerializer(serializers.ModelSerializer):
+    # Para la entrada (creación/actualización): Este campo NO se espera del frontend.
+    # Se asignará en la vista basándose en el restaurante de la URL y la propiedad.
+    # Para la salida (lectura): Por defecto, serializará al ID del Restaurante.
+    # Si quieres los detalles completos de Restaurante en la salida, añade:
+    # restaurante_details = RestauranteSerializer(source='restaurante', read_only=True)
+    # Eliminamos el queryset ya que es read_only=True
+    restaurante = serializers.PrimaryKeyRelatedField(read_only=True) # <-- Read-only: Se asigna en la vista
+
+
     class Meta:
         model = Envio
-        fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at') 
+        fields = [
+            'id',
+            'restaurante', # Campo para entrada (read-only) y salida (ID por defecto)
+            'nombre',
+            'estado',
+            'precio',
+            'created_at',
+            'updated_at'
+        ]
+        # read_only_fields: Campos que NUNCA se aceptan en la entrada.
+        # 'id', 'created_at', 'updated_at' son automáticos.
+        # 'restaurante' se asigna en la vista.
+        read_only_fields = ('id', 'restaurante', 'created_at', 'updated_at')
         
 class TipoCocinaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -29,12 +91,23 @@ class TipoCocinaSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_at', 'updated_at')
         
 class CategoriaSerializer(serializers.ModelSerializer):
+    # Campo para el restaurante asociado. Lo marcamos como read_only=True porque
+    # no esperamos que el frontend envíe el ID del restaurante al crear/actualizar categorías;
+    # el restaurante se determinará por la URL y el usuario autenticado en la vista.
+    # En la salida, serializará al ID del restaurante por defecto. Si quieres detalles, usa RestauranteSerializer.
+    restaurante = serializers.PrimaryKeyRelatedField(queryset=Restaurante.objects.all())
+
     class Meta:
         model = Categoria
-        fields = '__all__'
-        read_only_fields = ('created_at', 'updated_at')
+        # Incluimos todos los campos relevantes
+        fields = ['id', 'restaurante', 'nombre', 'slug', 'descripcion', 'orden', 'activo', 'created_at', 'updated_at']
+        # read_only_fields: Campos que NUNCA se aceptan en la entrada.
+        # 'id', 'created_at', 'updated_at' son automáticos.
+        # 'slug' se autogenera en el modelo, así que es read_only para la creación (si permites actualizarlo, quítalo de aquí).
+        # 'restaurante' se asigna en la vista, no se acepta en la entrada.
+        read_only_fields = ('id', 'restaurante', 'slug', 'created_at', 'updated_at')
         
-class ProductoSerializer(serializers.ModelSerializer):
+class ProductoClienteSerializer(serializers.ModelSerializer):
     categoria = CategoriaSerializer(read_only=True)
     class Meta:
         model = Producto
@@ -53,6 +126,60 @@ class RestauranteSerializer(serializers.ModelSerializer):
         model = Restaurante
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class ProductoSerializer(serializers.ModelSerializer):
+    # Para la entrada (creación/actualización): Aceptar el ID de la Categoría a la que pertenece el producto.
+    # Usamos PrimaryKeyRelatedField para ser explícitos.
+    # Para la salida (lectura): Por defecto, serializará al ID de la Categoría.
+    # Si quieres los detalles completos de la Categoría en la salida de un producto, añade:
+    # categoria_details = CategoriaSerializer(source='categoria', read_only=True)
+    categoria = serializers.PrimaryKeyRelatedField(queryset=Categoria.objects.all()) # <-- Writable: Acepta ID de Categoría en la entrada
+
+    # Para la entrada (creación/actualización): Este campo NO se espera del frontend.
+    # Se asignará automáticamente en la vista basándose en el restaurante de la URL y la propiedad.
+    # Para la salida (lectura): Por defecto, serializará al ID del Restaurante.
+    restaurante = serializers.PrimaryKeyRelatedField(queryset=Restaurante.objects.all()) # <-- Read-only: Se asigna en la vista
+
+    class Meta:
+        model = Producto
+        fields = [
+            'id',
+            'categoria', # Campo para entrada (ID) y salida (ID por defecto)
+            # Si añadiste categoria_details, inclúyelo aquí: 'categoria_details',
+            'restaurante', # Campo para entrada (read-only) y salida (ID por defecto)
+            'nombre',
+            'slug', # Se autogenera en el modelo, read-only para la creación
+            'descripcion',
+            'precio',
+            'imagen',
+            'activo',
+            'disponibilidad',
+            'orden',
+            'destacado',
+            'created_at',
+            'updated_at'
+        ]
+        # read_only_fields: Campos que NUNCA se aceptan en la entrada.
+        # 'id', 'created_at', 'updated_at' son automáticos.
+        # 'slug' se autogenera en el modelo.
+        # 'restaurante' se asigna en la vista.
+        read_only_fields = ('id', 'restaurante', 'slug', 'created_at', 'updated_at')
+        # Si añadiste categoria_details, también debe ir aquí: 'categoria_details',
+
+
 
 ## Serializador para los detalles de la orden (ítems)
 class DetalleOrdenSerializer(serializers.ModelSerializer):

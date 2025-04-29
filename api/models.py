@@ -152,7 +152,13 @@ class Envio(models.Model):
 
 class Categoria(models.Model):
     """Categorías para los productos del menú """
-    
+    restaurante = models.ForeignKey(
+        'Restaurante', # O Restaurante si está importado/definido antes
+        on_delete=models.CASCADE, # Si se elimina el restaurante, elimina sus categorías
+        related_name='categorias', # Nombre para la relación inversa (restaurante.categorias.all())
+        verbose_name='Restaurante',
+        null=True # Puede ser nulo si la categoría no está asociada a un restaurante
+    )
     nombre = models.CharField(max_length=100)
     slug = models.SlugField(max_length=100,
                             blank=True,
@@ -185,6 +191,7 @@ class Categoria(models.Model):
         verbose_name_plural = 'Categorías de Productos'
         #luego por orden y nombre
         ordering = ['orden', 'nombre']
+        unique_together = ['restaurante', 'slug']
         
         
         
@@ -241,6 +248,7 @@ class Producto(models.Model):
         verbose_name_plural = 'Productos'
         # Ordenar por categoría, luego por orden y nombre
         ordering = ['orden', 'nombre']
+        unique_together = ['restaurante', 'slug']
         # El slug debe ser único por categoría
         
         
