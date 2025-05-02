@@ -16,6 +16,7 @@ urlpatterns = [
     path('restaurantes/<slug:restaurante_slug>/envios/<int:envio_id>/', views.envio_detail_update_delete_restaurante, name='envio_detail_update_delete_restaurante'),
 
     #restaurantes
+    path('mis-restaurantes/', views.listar_mis_restaurantes, name='listar_mis_restaurantes'),
     path('restaurantes/', views.restaurante_list_create, name='restaurante_list_create'),
     path('restaurantes/<slug:slug>/', views.restaurante_detail, name='restaurante_detail'),
     path('restaurantes/<int:pk>', views.restaurante_detail_id , name='restaurante_detail_by_pk'),
@@ -24,6 +25,7 @@ urlpatterns = [
 
     #ordenes
     path('restaurantes/<slug:restaurante_slug>/ordenes/', views.listar_ordenes_restaurante, name='listar_ordenes_restaurante'),
+    path('restaurantes/<slug:restaurante_slug>/ordenes/<int:orden_id>/', views.orden_detail_restaurante, name='orden_detail_restaurante'),
     path('restaurantes/<slug:restaurante_slug>/ordenes/<int:orden_id>/estado/', views.actualizar_estado_orden, name='actualizar_estado_orden'),
 
     ## categorias
@@ -33,6 +35,9 @@ urlpatterns = [
     #productos
     path('restaurantes/<slug:restaurante_slug>/categorias/<int:categoria_id>/productos/', views.producto_list_create_restaurante_categoria, name='producto_list_create_restaurante_categoria'),
     path('restaurantes/<slug:restaurante_slug>/categorias/<int:categoria_id>/productos/<int:producto_id>/', views.producto_detail_update_delete_restaurante_categoria, name='producto_detail_update_delete_restaurante_categoria'),
+
+    #menu dashboard
+    path('restaurantes/<slug:restaurante_slug>/menu/', views.restaurant_menu_list_view, name='restaurant_menu_list'),
 
     #ordenes
     path('ordenes/', views.crear_orden, name='crear_orden'),

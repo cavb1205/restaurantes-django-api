@@ -361,6 +361,27 @@ def restaurante_list_create(request):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+@api_view(['GET']) # Solo permitirá peticiones GET
+@permission_classes([IsAuthenticated]) # Requiere que el usuario esté autenticado
+def listar_mis_restaurantes(request):
+    """
+    Lista los restaurantes donde el usuario autenticado es el propietario.
+    """
+    user = request.user # Obtener el usuario autenticado
+
+    # Filtrar restaurantes donde el usuario actual es el propietario
+    # .prefetch_related('tipos_cocina', 'redes_sociales', etc.) si necesitas esos detalles aquí
+    mis_restaurantes = Restaurante.objects.filter(propietario=user)
+
+    # Serializar la lista de restaurantes.
+    # Usamos RestauranteSerializer. many=True para una lista.
+    serializer = RestauranteSerializer(mis_restaurantes, many=True)
+
+    # Devolver la respuesta con la lista serializada
+    return Response(serializer.data)
+
+
 @api_view(['GET', 'PUT', 'DELETE'])
 def restaurante_detail(request, slug):
     
@@ -513,6 +534,26 @@ def listar_ordenes_restaurante(request, restaurante_slug):
     return Response(serializer.data)   
 
 
+@api_view(['GET']) # Solo permitirá peticiones GET
+@permission_classes([IsAuthenticated]) # Requiere que el usuario esté autenticado
+def orden_detail_restaurante(request, restaurante_slug, orden_id):
+    """
+    Devuelve los detalles de una orden específica por ID,
+    verificando que el usuario autenticado sea el propietario del restaurante asociado.
+    """
+    user = request.user
+    orden = get_object_or_404(Orden, id=orden_id)
+    restaurante_orden = orden.restaurante
+    if restaurante_orden.propietario != user:
+        return Response({"error": "No tienes permiso para ver esta orden."}, status=status.HTTP_403_FORBIDDEN)
+    # 3. Si la verificación de permiso pasa, proceder a serializar la orden.
+    # Usamos el OrdenSerializer completo para incluir todos los detalles anidados
+    # en la respuesta, como en la vista de detalle GET.
+    serializer = OrdenSerializer(orden, context={'request': request}) # Pasa el contexto si es necesario en el serializador
+    # 4. Devolver la respuesta
+    return Response(serializer.data) # Devuelve la orden serializada
+
+
 @api_view(['PATCH']) # Usamos PATCH para actualizaciones parciales (solo un campo)
 @permission_classes([IsAuthenticated]) # Requiere que el usuario esté autenticado
 # La función acepta el ID de la orden como parámetro
@@ -521,6 +562,7 @@ def actualizar_estado_orden(request, restaurante_slug, orden_id):
     Actualiza el estado de una orden específica por ID,
     verificando que el usuario autenticado sea el propietario del restaurante asociado.
     """
+    print('ingresa a actualizar estado orden')
     user = request.user # Obtener el usuario autenticado
 
     # 1. Intentar encontrar la orden por el ID
@@ -807,6 +849,33 @@ def producto_detail_update_delete_restaurante_categoria(request, restaurante_slu
         # Devolver una respuesta de éxito sin contenido.
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+
+@api_view(['GET']) 
+@permission_classes([IsAuthenticated])
+def restaurant_menu_list_view(request, restaurante_slug):
+    print(f"[restaurant_menu_list_view] Called for slug: {restaurante_slug}") # Log de inicio
+
+    try:
+        queryset = Producto.objects.filter(restaurante__slug=restaurante_slug)
+        # Opcional: Añade más filtros (ej: solo activos)
+        # queryset = queryset.filter(activo=True)
+
+        # Opcional: Ordena los productos
+        queryset = queryset.order_by('orden', 'nombre')
+
+        print(f"[restaurant_menu_list_view] Found {queryset.count()} products.")
+
+        # Serializa el queryset de productos
+        # many=True porque estamos serializando una lista/QuerySet
+        serializer = ProductoSerializer(queryset, many=True)
+
+        # Retorna la respuesta con los datos serializados
+        return Response(serializer.data)
+
+    except Exception as e:
+        # Manejo de errores generales
+        print(f"[restaurant_menu_list_view] An error occurred: {e}")
+        return Response({"detail": "Error interno del servidor."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 

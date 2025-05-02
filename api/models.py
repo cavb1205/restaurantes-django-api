@@ -259,6 +259,7 @@ class Orden(models.Model):
         ('pendiente', 'Pendiente'),
         ('en_proceso', 'En Proceso'),
         ('en_camino', 'En Camino'),
+        ('lista_retiro', 'Lista para Retiro'),
         ('entregada', 'Entregada'),
         ('cancelada', 'Cancelada'),
     ]
