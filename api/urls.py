@@ -38,6 +38,7 @@ urlpatterns = [
 
     #menu dashboard
     path('restaurantes/<slug:restaurante_slug>/menu/', views.restaurant_menu_list_view, name='restaurant_menu_list'),
+    path('restaurantes/<slug:restaurante_slug>/menu/<int:product_id>/', views.product_detail_view, name='product_detail'),
 
     #ordenes
     path('ordenes/', views.crear_orden, name='crear_orden'),

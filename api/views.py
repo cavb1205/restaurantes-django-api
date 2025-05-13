@@ -850,32 +850,144 @@ def producto_detail_update_delete_restaurante_categoria(request, restaurante_slu
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-@api_view(['GET']) 
+@api_view(['GET','POST']) # Permite GET para listar, POST para crear
 @permission_classes([IsAuthenticated])
 def restaurant_menu_list_view(request, restaurante_slug):
-    print(f"[restaurant_menu_list_view] Called for slug: {restaurante_slug}") # Log de inicio
+    print("ingresa a restaurant_menu_list_view")
+    
+    print(f"[restaurant_menu_list_view] Called for slug: {restaurante_slug} with method: {request.method}") # Log de inicio
+
+    # --- Lógica para GET (Listar) ---
+    if request.method == 'GET':
+        try:
+            # Filtra los productos del restaurante
+            queryset = Producto.objects.filter(restaurante__slug=restaurante_slug)
+            # Opcional: Verifica permisos sobre el restaurante si no lo hiciste antes
+            # from .models import Restaurante
+            # try:
+            #     restaurante = Restaurante.objects.get(slug=restaurante_slug)
+            #     # if not request.user.has_perm('view_menu', restaurante): ...
+            # except Restaurante.DoesNotExist:
+            #     return Response({"detail": "Restaurante no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+            print(f"[restaurant_menu_list_view] GET: Found {queryset.count()} products.")
+            # Serializa la lista y retorna la respuesta
+            serializer = ProductoSerializer(queryset, many=True)
+            return Response(serializer.data)
+
+        except Exception as e:
+             print(f"[restaurant_menu_list_view] GET error: {e}")
+             return Response({"detail": "Error interno del servidor al listar."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    
+    elif request.method == 'POST':
+        print(f"[restaurant_menu_list_view] POST: Data received: {request.data}")
+        try:
+             # ** Obtener el objeto Restaurante **
+             restaurante = Restaurante.objects.get(slug=restaurante_slug)
+
+             # ** <<-- ¡REEMPLAZA LA LÍNEA DE PERMISO CON ESTO! -->> **
+             # Verifica si el usuario autenticado NO es el propietario del restaurante
+             # Y (Opcional) si no es superusuario o staff si quieres darles acceso total
+             if restaurante.propietario != request.user and not request.user.is_superuser and not request.user.is_staff:
+                 print(f"[restaurant_menu_list_view] POST: User {request.user.id} is not the owner or staff for restaurant {restaurante_slug}")
+                 return Response({"detail": "No tienes permiso para gestionar este restaurante."}, status=status.HTTP_403_FORBIDDEN)
+             # <<-- Fin de la línea de permiso corregida -->>
+
+
+        except Restaurante.DoesNotExist:
+             print(f"[restaurant_menu_list_view] POST: Restaurante with slug {restaurante_slug} not found.")
+             return Response({"detail": "Restaurante no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+        # ... (resto de la lógica POST: instanciar serializador, serializer.is_valid(), serializer.save(), retornar respuesta) ...
+        serializer = ProductoSerializer(data=request.data, context={'restaurante': restaurante}) # <--- Mantén esta línea
+        if serializer.is_valid():
+            print(restaurante)
+            print("[restaurant_menu_list_view] POST: Serializer is valid. Saving...")
+            nuevo_producto = serializer.save() # <--- Mantén esta línea (asumiendo que el create() del serializador usa el context)
+            print(f"[restaurant_menu_list_view] POST: Product created with ID: {nuevo_producto.id}")
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        print("[restaurant_menu_list_view] POST: Serializer is NOT valid. Errors:", serializer.errors)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+@api_view(['GET', 'PATCH', 'PUT', 'DELETE'])
+@permission_classes([IsAuthenticated]) 
+def product_detail_view(request, restaurante_slug, product_id):
+    print(f"[product_detail_view] Called for slug: {restaurante_slug}, product_id: {product_id} with method: {request.method}") # Log de inicio
 
     try:
-        queryset = Producto.objects.filter(restaurante__slug=restaurante_slug)
-        # Opcional: Añade más filtros (ej: solo activos)
-        # queryset = queryset.filter(activo=True)
+        # 1. Obtener el Restaurante por slug (para verificar que existe y permisos)
+        restaurante = Restaurante.objects.get(slug=restaurante_slug)
+        # Opcional: Verifica permisos del usuario sobre este restaurante para cualquier acción
+        if restaurante.propietario != request.user and not request.user.is_superuser and not request.user.is_staff:
+             print(f"[product_detail_view] User {request.user.id} does not have permission for restaurant {restaurante_slug}")
+             return Response({"detail": "No tienes permiso para gestionar este restaurante."}, status=status.HTTP_403_FORBIDDEN)
 
-        # Opcional: Ordena los productos
-        queryset = queryset.order_by('orden', 'nombre')
+        # 2. Obtener el Producto por ID Y asegurarnos de que pertenezca a este restaurante
+        producto = Producto.objects.get(restaurante=restaurante, id=product_id)
 
-        print(f"[restaurant_menu_list_view] Found {queryset.count()} products.")
+    except Restaurante.DoesNotExist:
+        print(f"[product_detail_view] Restaurante with slug {restaurante_slug} not found.")
+        return Response({"detail": "Restaurante no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+    except Producto.DoesNotExist:
+        print(f"[product_detail_view] Product with ID {product_id} not found for restaurant {restaurante_slug}.")
+        # Retorna 404 si el producto no se encuentra O no pertenece a este restaurante
+        return Response({"detail": "Producto no encontrado para este restaurante."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Serializa el queryset de productos
-        # many=True porque estamos serializando una lista/QuerySet
-        serializer = ProductoSerializer(queryset, many=True)
+    # Si llegamos aquí, el producto fue encontrado y el usuario tiene permisos básicos sobre el restaurante.
+    print(f"[product_detail_view] Product found: {producto.nombre} (ID: {producto.id})")
 
-        # Retorna la respuesta con los datos serializados
+
+    # --- Lógica para GET (Detalle) ---
+    if request.method == 'GET':
+        print("[product_detail_view] Handling GET request.")
+        # Serializa el único objeto producto
+        serializer = ProductoSerializer(producto) # No many=True aquí
         return Response(serializer.data)
 
-    except Exception as e:
-        # Manejo de errores generales
-        print(f"[restaurant_menu_list_view] An error occurred: {e}")
-        return Response({"detail": "Error interno del servidor."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    # --- Lógica para PATCH/PUT (Actualizar) ---
+    elif request.method in ['PATCH', 'PUT']:
+        print(f"[product_detail_view] Handling {request.method} request. Data received: {request.data}")
+
+        # Usar el mismo Serializer, pasándole la instancia existente y los datos recibidos
+        # partial=True es para PATCH (permite actualizar solo un subconjunto de campos)
+        # partial=False (por defecto) es para PUT (requiere todos los campos del serializador)
+        partial = request.method == 'PATCH'
+        serializer = ProductoSerializer(producto, data=request.data, partial=partial, context={'restaurante': restaurante}) # Pasar contexto si el serializer lo necesita para validación/save
+
+        # Validar los datos de actualización
+        if serializer.is_valid():
+            print(f"[product_detail_view] {request.method}: Serializer is valid. Saving...")
+            # Guardar la instancia actualizada.
+            # Si tu Serializer tiene un método update(), este se llamará automáticamente.
+            # Si necesitas hacer algo especial al guardar (ej: regenerar slug si cambia el nombre),
+            # sobrescribe update() en el Serializer.
+            updated_producto = serializer.save() # <--- Llama a save(). Si usas context en update(), no necesitas pasar el objeto aquí.
+
+            print(f"[product_detail_view] Product updated: {updated_producto.nombre}")
+            # Retorna la respuesta con los datos del objeto actualizado
+            return Response(serializer.data)
+
+        # Si los datos no son válidos, retorna los errores
+        print(f"[product_detail_view] {request.method}: Serializer is NOT valid. Errors:", serializer.errors)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # --- Lógica para DELETE (Eliminar) ---
+    elif request.method == 'DELETE':
+        print("[product_detail_view] Handling DELETE request.")
+        try:
+            # Eliminar la instancia del producto
+            producto.delete()
+            print(f"[product_detail_view] Product deleted: {producto.nombre} (ID: {producto.id})")
+            # Retornar una respuesta vacía con status 204 No Content
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        except Exception as e:
+            print(f"[product_detail_view] DELETE error: {e}")
+            # Puedes retornar un error si algo salió mal durante la eliminación
+            return Response({"detail": "Error al eliminar el producto."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 

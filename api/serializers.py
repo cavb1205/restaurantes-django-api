@@ -29,6 +29,24 @@ class RedSocialSerializer(serializers.ModelSerializer):
         # 'id', 'created_at', 'updated_at' son automáticos.
         # 'restaurante' se asigna en la vista.
         read_only_fields = ('id', 'restaurante', 'created_at', 'updated_at')
+        
+        
+    # Método create() - Necesario para asociar el restaurante.
+    def create(self, validated_data):
+         print("[RedSocialSerializer - create] Method called.")
+         # Usa .pop() para obtener el restaurante de validated_data
+         restaurante = validated_data.pop('restaurante', None)
+
+         if not restaurante:
+             print("[RedSocialSerializer - create] Error: 'restaurante' not found in validated_data.")
+             raise serializers.ValidationError("Error interno: Restaurante no fue proporcionado al serializador.")
+
+         print(f"[RedSocialSerializer - create] Creating RedSocial for restaurant: {restaurante.slug}")
+         # Crea la nueva instancia
+         red_social = RedSocial.objects.create(restaurante=restaurante, **validated_data)
+
+         print(f"[RedSocialSerializer - create] RedSocial created with ID: {red_social.id}")
+         return red_social
 
 class MetodoPagoSerializer(serializers.ModelSerializer):
     # Para la entrada (creación/actualización): Este campo NO se espera del frontend.
@@ -56,6 +74,29 @@ class MetodoPagoSerializer(serializers.ModelSerializer):
         # 'id', 'created_at', 'updated_at' son automáticos.
         # 'restaurante' se asigna en la vista.
         read_only_fields = ('id', 'restaurante', 'created_at', 'updated_at')
+        
+    # Método create() - **<<-- ¡CORREGIDO para usar .pop() ! -->>**
+    def create(self, validated_data):
+         print("[MetodoPagoSerializer - create] Method called.")
+
+         # **<<-- ¡Obtiene el objeto 'restaurante' USANDO .pop() Y LO REMUEVE de validated_data -->>**
+         # Usa .pop('nombre_clave', valor_por_defecto_si_no_existe)
+         restaurante = validated_data.pop('restaurante', None) # <<-- ¡Cambio clave aquí! Usa .pop()
+
+         # Tu verificación personalizada (opcional pero útil)
+         if not restaurante:
+             print("[MetodoPagoSerializer - create] Error: 'restaurante' not found in validated_data after pop.")
+             raise serializers.ValidationError("Error interno: Restaurante no fue proporcionado al serializador.")
+
+         print(f"[MetodoPagoSerializer - create] Creating MetodoPago for restaurant: {restaurante.slug}")
+
+         # Crea la nueva instancia de MetodoPago.
+         # Ahora, cuando uses **validated_data, el diccionario YA NO contendrá la clave 'restaurante',
+         # evitando el TypeError.
+         metodo_pago = MetodoPago.objects.create(restaurante=restaurante, **validated_data) # <<-- Esto ya no causa conflicto
+
+         print(f"[MetodoPagoSerializer - create] MetodoPago created with ID: {metodo_pago.id}")
+         return metodo_pago
 
 
 class EnvioSerializer(serializers.ModelSerializer):
@@ -141,27 +182,26 @@ class RestauranteSerializer(serializers.ModelSerializer):
 
 
 class ProductoSerializer(serializers.ModelSerializer):
-    # Para la entrada (creación/actualización): Aceptar el ID de la Categoría a la que pertenece el producto.
-    # Usamos PrimaryKeyRelatedField para ser explícitos.
-    # Para la salida (lectura): Por defecto, serializará al ID de la Categoría.
-    # Si quieres los detalles completos de la Categoría en la salida de un producto, añade:
-    # categoria_details = CategoriaSerializer(source='categoria', read_only=True)
-    categoria = serializers.PrimaryKeyRelatedField(queryset=Categoria.objects.all()) # <-- Writable: Acepta ID de Categoría en la entrada
+    # Para la entrada (creación/actualización): Aceptar el ID de la Categoría.
+    categoria = serializers.PrimaryKeyRelatedField(queryset=Categoria.objects.all()) # <-- Sigue siendo escribible
 
-    # Para la entrada (creación/actualización): Este campo NO se espera del frontend.
-    # Se asignará automáticamente en la vista basándose en el restaurante de la URL y la propiedad.
-    # Para la salida (lectura): Por defecto, serializará al ID del Restaurante.
-    restaurante = serializers.PrimaryKeyRelatedField(queryset=Restaurante.objects.all()) # <-- Read-only: Se asigna en la vista
+    # **<<-- ¡CAMBIO CLAVE AQUÍ! Marca 'restaurante' explícitamente como read_only=True -->>**
+    # Esto le dice al serializador que este campo es solo para serialización de SALIDA.
+    restaurante = serializers.PrimaryKeyRelatedField( read_only=True) # <-- ¡Ahora es read_only para la entrada!
+
+    # Opcional: Si quieres los detalles completos de la Categoría en la salida
+    categoria_details = CategoriaSerializer(source='categoria', read_only=True)
+
 
     class Meta:
         model = Producto
         fields = [
             'id',
-            'categoria', # Campo para entrada (ID) y salida (ID por defecto)
-            # Si añadiste categoria_details, inclúyelo aquí: 'categoria_details',
-            'restaurante', # Campo para entrada (read-only) y salida (ID por defecto)
+            'categoria',
+            'categoria_details',
+            'restaurante', # <-- Sigue en fields para serialización de SALIDA
             'nombre',
-            'slug', # Se autogenera en el modelo, read-only para la creación
+            'slug',
             'descripcion',
             'precio',
             'imagen',
@@ -172,12 +212,31 @@ class ProductoSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at'
         ]
-        # read_only_fields: Campos que NUNCA se aceptan en la entrada.
-        # 'id', 'created_at', 'updated_at' son automáticos.
-        # 'slug' se autogenera en el modelo.
-        # 'restaurante' se asigna en la vista.
-        read_only_fields = ('id', 'restaurante', 'slug', 'created_at', 'updated_at')
-        # Si añadiste categoria_details, también debe ir aquí: 'categoria_details',
+        # <<-- Recomendado: Quita 'restaurante' de read_only_fields aquí -->>
+        # Ya lo marcaste explícitamente arriba, tenerlo aquí es redundante y confuso.
+        read_only_fields = ('id', 'slug', 'created_at', 'updated_at') # <-- 'restaurante' ya no está aquí
+
+        # **<<-- ASEGÚRATE DE TENER UN MÉTODO create() QUE USE EL CONTEXTO -->>**
+        # Es CRUCIAL que tu Serializador tenga un método create() que sepa cómo
+        # obtener el objeto 'restaurante' del 'context' (que la vista le pasa)
+        # y usarlo para crear la instancia de Producto. El método que te di antes es este:
+
+    def create(self, validated_data):
+        print("[ProductoSerializer - create] Method called.")
+        restaurante = self.context.get('restaurante') # Obtiene el objeto restaurante del contexto
+
+        if not restaurante:
+            print("[ProductoSerializer - create] Error: 'restaurante' not found in serializer context.")
+            # Esto debería lanzar un error si la vista no pasó el restaurante correctamente
+            raise serializers.ValidationError("Error interno: Restaurante no fue proporcionado al serializador.")
+
+        print(f"[ProductoSerializer - create] Creating product for restaurant: {restaurante.slug}")
+        # Crea la nueva instancia de Producto, pasando el objeto restaurante
+        producto = Producto.objects.create(restaurante=restaurante, **validated_data)
+
+        print(f"[ProductoSerializer - create] Product created with ID: {producto.id}")
+        return producto
+
 
 
 
